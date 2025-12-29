@@ -6,8 +6,8 @@ sudo apt update
 sudo apt install docker.io -y
 sudo systemctl start docker
 
-# 3) Download the project
-git clone https://github.com/USERNAME/GuessGame.git
+# 3) Download the projecthttps:
+https://github.com/Bahaa-Fadel1/GuessGame.git
 cd GuessGame
 
 # 4) Build the project (first time only)

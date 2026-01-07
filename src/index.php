@@ -19,7 +19,10 @@ function start_new_game(string $k,array $levels,array &$g):void{
  'won'=>false,'lost'=>false,'started_at'=>time()];
 }
 
-if(!isset($_SESSION['game'])) start_new_game('easy',$levels,$_SESSION['game']);
+if (!isset($_SESSION['game']) || !is_array($_SESSION['game'])) {
+    $_SESSION['game'] = [];
+    start_new_game('easy', $levels, $_SESSION['game']);
+}
 if(!isset($_SESSION['stats'])) $_SESSION['stats']=['wins'=>0,'streak'=>0,'best_attempts'=>null,'best_time'=>null];
 $game=&$_SESSION['game']; $stats=&$_SESSION['stats'];
 

@@ -1,4 +1,3 @@
-B B, [7/1/2026 4:12 م]
 <?php
 declare(strict_types=1);
 session_start();

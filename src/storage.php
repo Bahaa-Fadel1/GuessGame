@@ -52,7 +52,7 @@ function top_scores(int $limit = 10): array {
   $scores = read_scores();
   return array_slice($scores, 0, $limit);
 }
-Basma
+
 <?php
 declare(strict_types=1);
 session_start();

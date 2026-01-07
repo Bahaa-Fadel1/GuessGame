@@ -13,7 +13,7 @@ $levels = [
 ];
 
 function start_new_game(string $levelKey, array $levels, array &$game): void {
-  $lv = $levels[$levelKey] ?? $levels['easy'];
+  $lv = $levels[$levelKey];
   $game = [
     'level' => $levelKey,
     'min' => $lv['min'],
@@ -28,26 +28,14 @@ function start_new_game(string $levelKey, array $levels, array &$game): void {
   ];
 }
 
-/* ========= init (مهم: بدون تكرار) ========= */
-if (!is_array($_SESSION['game'] ?? null)) {
-  $_SESSION['game'] = [];
-  start_new_game('easy', $levels, $_SESSION['game']);
-}
+// init
+if (!isset($_SESSION['game'])) start_new_game('easy', $levels, $_SESSION['game']);
+if (!isset($_SESSION['stats'])) $_SESSION['stats'] = ['wins'=>0,'streak'=>0,'best_attempts'=>null,'best_time'=>null];
 
-if (!is_array($_SESSION['stats'] ?? null)) {
-  $_SESSION['stats'] = [
-    'wins' => 0,
-    'streak' => 0,
-    'best_attempts' => null,
-    'best_time' => null
-  ];
-}
-
-$game  =& $_SESSION['game'];
+$game =& $_SESSION['game'];
 $stats =& $_SESSION['stats'];
 
-$msg = null; 
-$msgClass = null;
+$msg = null; $msgClass = null;
 
 $action = $_POST['action'] ?? null;
 
@@ -102,7 +90,7 @@ if ($action === 'guess' && !$game['won'] && !$game['lost']) {
           $stats['best_time'] = $timeSpent;
         }
 
-        // Save score
+        // Save score to JSON leaderboard
         $levelLabel = $levels[$game['level']]['label'];
         add_score($name, $levelLabel, $game['attempts'], $timeSpent);
 

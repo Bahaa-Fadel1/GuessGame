@@ -104,7 +104,6 @@ $timeNow=max(0,time()-$game['started_at']);
 
 <?php if($msg): ?><div class="msg <?=h($msgClass)?>"><?=h($msg)?></div><?php endif; ?>
 
-B B, [7/1/2026 4:12 م]
 <form method="post" class="form row">
 <input type="hidden" name="action" value="guess">
 <input class="inp" name="name" placeholder="Your name">

@@ -1,7 +1,7 @@
 <?php
 
 function db_path() {
-  return _DIR_ . "/scores.json";
+  return __DIR__ . "/scores.json";
 }
 
 function ensure_db_exists() {

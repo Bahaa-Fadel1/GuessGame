@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once _DIR_ . "/storage.php";
+require_once __DIR__ . "/storage.php";
 
 function h($s) { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 

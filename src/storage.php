@@ -1,57 +1,62 @@
 <?php
-declare(strict_types=1);
 
-
-function db_path(): string {
+function db_path() {
   return _DIR_ . "/scores.json";
 }
 
-function ensure_db_exists(): void {
+function ensure_db_exists() {
   $path = db_path();
   if (!file_exists($path)) {
-    file_put_contents($path, json_encode([], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    file_put_contents($path, json_encode(array(), JSON_PRETTY_PRINT));
   }
 }
 
-function read_scores(): array {
+function read_scores() {
   ensure_db_exists();
   $raw = file_get_contents(db_path());
-  $data = json_decode($raw ?: "[]", true);
-  return is_array($data) ? $data : [];
+  $data = json_decode($raw ? $raw : "[]", true);
+  return is_array($data) ? $data : array();
 }
 
-function write_scores(array $scores): void {
-  // keep file not huge
+function write_scores($scores) {
   $scores = array_slice($scores, 0, 200);
-  file_put_contents(db_path(), json_encode($scores, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+  file_put_contents(db_path(), json_encode($scores, JSON_PRETTY_PRINT));
 }
 
-function add_score(string $name, string $level, int $attempts, int $seconds): void {
+function add_score($name, $level, $attempts, $seconds) {
   $name = trim($name);
   if ($name === "") $name = "Player";
-  $name = mb_substr($name, 0, 20);
+  if (function_exists('mb_substr')) $name = mb_substr($name, 0, 20);
+  else $name = substr($name, 0, 20);
 
   $scores = read_scores();
-  $scores[] = [
+  $scores[] = array(
     "name" => $name,
     "level" => $level,
-    "attempts" => $attempts,
-    "seconds" => $seconds,
+    "attempts" => (int)$attempts,
+    "seconds" => (int)$seconds,
     "at" => date("Y-m-d H:i:s"),
-  ];
+  );
 
-  // sort: fewer attempts, then less time
-  usort($scores, function ($a, $b) {
-    if (($a["attempts"] ?? 0) === ($b["attempts"] ?? 0)) {
-      return ($a["seconds"] ?? 0) <=> ($b["seconds"] ?? 0);
+  // sort: fewer attempts then less time (PHP5 compatible, no <=>)
+  usort($scores, function($a, $b) {
+    $aAtt = isset($a["attempts"]) ? (int)$a["attempts"] : 0;
+    $bAtt = isset($b["attempts"]) ? (int)$b["attempts"] : 0;
+
+    if ($aAtt === $bAtt) {
+      $aSec = isset($a["seconds"]) ? (int)$a["seconds"] : 0;
+      $bSec = isset($b["seconds"]) ? (int)$b["seconds"] : 0;
+      if ($aSec === $bSec) return 0;
+      return ($aSec < $bSec) ? -1 : 1;
     }
-    return ($a["attempts"] ?? 0) <=> ($b["attempts"] ?? 0);
+
+    return ($aAtt < $bAtt) ? -1 : 1;
   });
 
   write_scores($scores);
 }
 
-function top_scores(int $limit = 10): array {
+function top_scores($limit) {
   $scores = read_scores();
-  return array_slice($scores, 0, $limit);
+  return array_slice($scores, 0, (int)$limit);
 }

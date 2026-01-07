@@ -29,6 +29,13 @@ function start_new_game(string $levelKey, array $levels, array &$game): void {
 }
 
 // init
+if (!is_array($_SESSION['game'] ?? null)) {
+  $_SESSION['game'] = [];
+  start_new_game('easy', $levels, $_SESSION['game']);
+}
+if (!is_array($_SESSION['stats'] ?? null)) {
+  $_SESSION['stats'] = ['wins'=>0,'streak'=>0,'best_attempts'=>null,'best_time'=>null];
+}
 if (!isset($_SESSION['game'])) start_new_game('easy', $levels, $_SESSION['game']);
 if (!isset($_SESSION['stats'])) $_SESSION['stats'] = ['wins'=>0,'streak'=>0,'best_attempts'=>null,'best_time'=>null];
 

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 session_start();
 require_once __DIR__."/storage.php";
+
 function h(string $s):string{return htmlspecialchars($s,ENT_QUOTES,'UTF-8');}
 
 $levels=[
@@ -72,6 +73,7 @@ if($action==='guess' && !$game['won'] && !$game['lost']){
   }
  }
 }
+
 $lv=$levels[$game['level']];
 $rangeText="{$game['min']} - {$game['max']}";
 $timeNow=max(0,time()-$game['started_at']);
@@ -90,7 +92,7 @@ $timeNow=max(0,time()-$game['started_at']);
 <div class="hd">
 <div class="badge"><div class="logo"></div>
 <div><h1>GuessGame</h1><p class="sub">Pick a difficulty & guess smart</p></div></div>
-<div style="display:flex;gap:10px">
+<div style="display:flex;gap:10px; flex-wrap:wrap">
 <a class="btn secondary" href="/leaderboard.php">Leaderboard</a>
 <form method="post"><input type="hidden" name="action" value="reset_all">
 <button class="btn danger">Reset</button></form></div></div>

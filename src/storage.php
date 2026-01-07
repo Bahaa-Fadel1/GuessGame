@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+
 function db_path(): string {
   return _DIR_ . "/scores.json";
 }
@@ -8,10 +9,7 @@ function db_path(): string {
 function ensure_db_exists(): void {
   $path = db_path();
   if (!file_exists($path)) {
-    file_put_contents(
-      $path,
-      json_encode([], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-    );
+    file_put_contents($path, json_encode([], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
   }
 }
 
@@ -23,11 +21,9 @@ function read_scores(): array {
 }
 
 function write_scores(array $scores): void {
+  // keep file not huge
   $scores = array_slice($scores, 0, 200);
-  file_put_contents(
-    db_path(),
-    json_encode($scores, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-  );
+  file_put_contents(db_path(), json_encode($scores, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
 function add_score(string $name, string $level, int $attempts, int $seconds): void {
@@ -44,11 +40,12 @@ function add_score(string $name, string $level, int $attempts, int $seconds): vo
     "at" => date("Y-m-d H:i:s"),
   ];
 
+  // sort: fewer attempts, then less time
   usort($scores, function ($a, $b) {
-    if ($a["attempts"] === $b["attempts"]) {
-      return $a["seconds"] <=> $b["seconds"];
+    if (($a["attempts"] ?? 0) === ($b["attempts"] ?? 0)) {
+      return ($a["seconds"] ?? 0) <=> ($b["seconds"] ?? 0);
     }
-    return $a["attempts"] <=> $b["attempts"];
+    return ($a["attempts"] ?? 0) <=> ($b["attempts"] ?? 0);
   });
 
   write_scores($scores);

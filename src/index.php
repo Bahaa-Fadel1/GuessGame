@@ -1,73 +1,10 @@
 <?php
 declare(strict_types=1);
 
-function db_path(): string {
-  return _DIR_ . "/scores.json";
-}
-
-function ensure_db_exists(): void {
-  $path = db_path();
-  if (!file_exists($path)) {
-    file_put_contents(
-      $path,
-      json_encode([], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-    );
-  }
-}
-
-function read_scores(): array {
-  ensure_db_exists();
-  $raw = file_get_contents(db_path());
-  $data = json_decode($raw ?: "[]", true);
-  return is_array($data) ? $data : [];
-}
-
-function write_scores(array $scores): void {
-  $scores = array_slice($scores, 0, 200);
-  file_put_contents(
-    db_path(),
-    json_encode($scores, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-  );
-}
-
-function add_score(string $name, string $level, int $attempts, int $seconds): void {
-  $name = trim($name);
-  if ($name === "") $name = "Player";
-  $name = mb_substr($name, 0, 20);
-
-  $scores = read_scores();
-  $scores[] = [
-    "name" => $name,
-    "level" => $level,
-    "attempts" => $attempts,
-    "seconds" => $seconds,
-    "at" => date("Y-m-d H:i:s"),
-  ];
-
-  usort($scores, function ($a, $b) {
-    if ($a["attempts"] === $b["attempts"]) {
-      return $a["seconds"] <=> $b["seconds"];
-    }
-    return $a["attempts"] <=> $b["attempts"];
-  });
-
-  write_scores($scores);
-}
-
-function top_scores(int $limit = 10): array {
-  $scores = read_scores();
-  return array_slice($scores, 0, $limit);
-}
-Basma
-<?php
-declare(strict_types=1);
 session_start();
-
 require_once _DIR_ . "/storage.php";
 
-function h(string $s): string {
-  return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-}
+function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 
 $levels = [
   'easy'   => ['label'=>'Easy',   'min'=>1, 'max'=>20,  'tries'=>8],
@@ -92,22 +29,20 @@ function start_new_game(string $levelKey, array $levels, array &$game): void {
   ];
 }
 
-if (!isset($_SESSION['game'])) {
+/** ✅ FIX: if session game is null or not array */
+if (!isset($_SESSION['game']) || !is_array($_SESSION['game'])) {
+  $_SESSION['game'] = [];
   start_new_game('easy', $levels, $_SESSION['game']);
 }
-if (!isset($_SESSION['stats'])) {
-  $_SESSION['stats'] = [
-    'wins'=>0,
-    'streak'=>0,
-    'best_attempts'=>null,
-    'best_time'=>null
-  ];
+
+if (!isset($_SESSION['stats']) || !is_array($_SESSION['stats'])) {
+  $_SESSION['stats'] = ['wins'=>0,'streak'=>0,'best_attempts'=>null,'best_time'=>null];
 }
 
 $game  =& $_SESSION['game'];
 $stats =& $_SESSION['stats'];
 
-$msg = null;
+$msg = null; 
 $msgClass = null;
 
 $action = $_POST['action'] ?? null;
@@ -116,7 +51,7 @@ if ($action === 'new') {
   $level = $_POST['level'] ?? 'easy';
   if (!isset($levels[$level])) $level = 'easy';
   start_new_game($level, $levels, $game);
-  $msg = "New game started 🎲";
+  $msg = "New game started on {$levels[$level]['label']} 🎲";
   $msgClass = "ok";
 }
 
@@ -127,65 +62,178 @@ if ($action === 'reset_all') {
 }
 
 if ($action === 'guess' && !$game['won'] && !$game['lost']) {
-  $name = trim($_POST['name'] ?? 'Player');
-  $name = mb_substr($name ?: 'Player', 0, 20);
+  $name = trim((string)($_POST['name'] ?? ''));
+  if ($name === '') $name = 'Player';
+  $name = mb_substr($name, 0, 20);
 
   $guessRaw = $_POST['guess'] ?? '';
-
-  if (!is_numeric($guessRaw)) {
-    $msg = "Enter a valid number";
+  if ($guessRaw === '' || !is_numeric($guessRaw)) {
+    $msg = "Please enter a valid number 🙂";
     $msgClass = "warn";
   } else {
     $guess = (int)$guessRaw;
-    $game['attempts']++;
-    $game['tries_left']--;
 
-    if ($guess === $game['secret']) {
-      $game['won'] = true;
-      $stats['wins']++;
-      $stats['streak']++;
-
-      $timeSpent = time() - $game['started_at'];
-      add_score($name, $levels[$game['level']]['label'], $game['attempts'], $timeSpent);
-
-      $msg = "🎉 You won! Number was {$game['secret']}";
-      $msgClass = "ok";
-    } elseif ($game['tries_left'] <= 0) {
-      $game['lost'] = true;
-      $stats['streak'] = 0;
-      $msg = "💥 Game over! Number was {$game['secret']}";
-      $msgClass = "bad";
-    } else {
-      $msg = $guess < $game['secret'] ? "Try higher ⬆️" : "Try lower ⬇️";
+    if ($guess < $game['min'] || $guess > $game['max']) {
+      $msg = "Your guess must be between {$game['min']} and {$game['max']} 🙃";
       $msgClass = "warn";
+    } else {
+      $game['attempts'] += 1;
+      $game['tries_left'] -= 1;
+
+      $diff = abs($guess - $game['secret']);
+      $lastDiff = $game['last_diff'];
+      $game['last_diff'] = $diff;
+
+      if ($guess === $game['secret']) {
+        $game['won'] = true;
+        $stats['wins'] += 1;
+        $stats['streak'] += 1;
+
+        $timeSpent = max(1, time() - $game['started_at']);
+
+        if ($stats['best_attempts'] === null || $game['attempts'] < $stats['best_attempts']) {
+          $stats['best_attempts'] = $game['attempts'];
+        }
+        if ($stats['best_time'] === null || $timeSpent < $stats['best_time']) {
+          $stats['best_time'] = $timeSpent;
+        }
+
+        // Save to leaderboard
+        $levelLabel = $levels[$game['level']]['label'];
+        add_score($name, $levelLabel, (int)$game['attempts'], (int)$timeSpent);
+
+        $msg = "🎉 " . h($name) . " WON! Number: {$game['secret']} — Attempts: {$game['attempts']} — Time: {$timeSpent}s";
+        $msgClass = "ok";
+      } else {
+        if ($game['tries_left'] <= 0) {
+          $game['lost'] = true;
+          $stats['streak'] = 0;
+          $msg = "💥 Game over! The number was {$game['secret']}. Start a new game and try again!";
+          $msgClass = "bad";
+        } else {
+          $hotCold = '';
+          if ($diff <= 2) $hotCold = "🔥 Very hot";
+          else if ($diff <= 6) $hotCold = "♨️ Hot";
+          else if ($diff <= 12) $hotCold = "🌤️ Warm";
+          else if ($diff <= 25) $hotCold = "❄️ Cold";
+          else $hotCold = "🧊 Very cold";
+
+          $trend = '';
+          if ($lastDiff !== null) {
+            if ($diff < $lastDiff) $trend = " — getting warmer ✅";
+            else if ($diff > $lastDiff) $trend = " — getting colder 🥶";
+            else $trend = " — same distance 😅";
+          }
+
+          $highLow = $guess < $game['secret'] ? "Try higher ⬆️" : "Try lower ⬇️";
+          $msg = "{$hotCold}{$trend}. {$highLow} — Tries left: {$game['tries_left']}.";
+          $msgClass = "warn";
+        }
+      }
     }
   }
 }
+
+$levelKey = $game['level'];
+$lv = $levels[$levelKey];
+$rangeText = "{$game['min']} - {$game['max']}";
+$bestAttempts = $stats['best_attempts'] ?? "—";
+$bestTime = $stats['best_time'] ?? "—";
+$timeNow = max(0, time() - $game['started_at']);
 ?>
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>GuessGame</title>
+  <link rel="stylesheet" href="/style.css"/>
 </head>
 <body>
-<h1>GuessGame</h1>
+<div class="wrap">
+  <div class="shell">
 
-<?php if ($msg): ?>
-  <p><b><?=h($msg)?></b></p>
-<?php endif; ?>
+    <section class="card">
+      <div class="hd" style="z-index:2;">
+        <div class="badge">
+          <div class="logo"></div>
+          <div>
+            <h1>GuessGame</h1>
+            <p class="sub">Pick a difficulty, guess smart, and climb the leaderboard.</p>
+          </div>
+        </div>
 
-<form method="post">
-  <input type="hidden" name="action" value="guess">
-  <input name="name" placeholder="Your name">
-  <input name="guess" type="number">
-  <button>Guess</button>
-</form>
+        <div style="display:flex; gap:10px; align-items:center; z-index:2;">
+          <a class="btn secondary" href="/leaderboard.php" style="text-decoration:none;">Leaderboard</a>
+          <form method="post" style="margin:0;">
+            <input type="hidden" name="action" value="reset_all"/>
+            <button class="btn danger" type="submit" title="Reset everything">Reset</button>
+          </form>
+        </div>
+      </div>
 
-<form method="post">
-  <input type="hidden" name="action" value="new">
-  <button>New Game</button>
-</form>
+      <div class="kpis" style="position:relative; z-index:2;">
+        <div class="kpi"><div class="t">Difficulty</div><div class="v"><?=h($lv['label'])?></div></div>
+        <div class="kpi"><div class="t">Range</div><div class="v"><?=h($rangeText)?></div></div>
+        <div class="kpi"><div class="t">Tries Left</div><div class="v"><?= (int)$game['tries_left'] ?></div></div>
+        <div class="kpi"><div class="t">Time</div><div class="v"><?= (int)$timeNow ?>s</div></div>
+      </div>
 
+      <?php if ($msg): ?>
+        <div class="msg <?=h($msgClass ?? '')?>" style="position:relative; z-index:2;">
+          <?= h($msg) ?>
+        </div>
+      <?php endif; ?>
+
+      <div class="form" style="position:relative; z-index:2;">
+        <form method="post" class="row" autocomplete="off">
+          <input type="hidden" name="action" value="guess"/>
+          <input class="inp" name="name" placeholder="Your name (for scoreboard)" maxlength="20"/>
+          <input class="inp" name="guess" type="number" min="<?=$game['min']?>" max="<?=$game['max']?>" placeholder="Enter your guess…"/>
+          <div class="actions" style="grid-column:1/-1;">
+            <button class="btn" type="submit" <?=($game['won']||$game['lost'])?'disabled':''?>>Guess</button>
+          </div>
+        </form>
+
+        <form method="post" class="row" style="margin-top:10px;">
+          <input type="hidden" name="action" value="new"/>
+          <select name="level">
+            <?php foreach ($levels as $k=>$info): ?>
+              <option value="<?=h($k)?>" <?= $k===$levelKey ? 'selected' : '' ?>>
+                <?=h($info['label'])?> (<?=h((string)$info['min'])?>-<?=h((string)$info['max'])?>, <?=h((string)$info['tries'])?> tries)
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <div class="actions">
+            <button class="btn secondary" type="submit">New Game</button>
+          </div>
+        </form>
+
+        <div class="small">
+          Attempts: <b><?= (int)$game['attempts'] ?></b> • Wins: <b><?= (int)$stats['wins'] ?></b> • Streak: <b><?= (int)$stats['streak'] ?></b> • Best Attempts: <b><?= h((string)$bestAttempts) ?></b> • Best Time: <b><?= h((string)$bestTime) ?>s</b>
+        </div>
+      </div>
+    </section>
+
+    <aside class="card">
+      <div class="hd" style="position:relative; z-index:2;">
+        <div>
+          <h1>How to Win</h1>
+          <p class="sub">Use hints: hot/cold + higher/lower + warmer/colder.</p>
+        </div>
+        <span class="pill">Fancier UI</span>
+      </div>
+
+      <div class="msg ok" style="position:relative; z-index:2;">
+        🏆 Winning saves your score automatically to the leaderboard.
+      </div>
+
+      <div class="small" style="position:relative; z-index:2;">
+        Tip: On “Insane”, small improvements matter. Try to beat your best attempts/time.
+      </div>
+    </aside>
+
+  </div>
+</div>
 </body>
 </html>

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 function db_path(): string {
-  return _DIR_ . "/scores.json";
+  return __DIR__ . "/scores.json";
 }
 
 function ensure_db_exists(): void {

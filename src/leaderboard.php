@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once DIR . "/storage.php";
+require_once __DIR__ . "/storage.php";
 
 $scores = top_scores(10);
 
